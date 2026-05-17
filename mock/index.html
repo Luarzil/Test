@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DAR / IR Mobile App Prototype</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #0b1020, #131a2b);
+      min-height: 100vh;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 16px;
+      padding: 16px;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    .panel {
+      background: rgba(17, 24, 39, 0.95);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.28);
+    }
+    h1, h2, h3 { margin: 0 0 10px; }
+    h1 { font-size: 1.25rem; }
+    h2 { font-size: 1.05rem; margin-top: 8px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+    }
+    .full { grid-column: 1 / -1; }
+    label {
+      font-size: .82rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 4px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: var(--text);
+      padding: 10px;
+      font-size: .92rem;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    button {
+      cursor: pointer;
+      background: #1e293b;
+      transition: .15s;
+    }
+    button:hover { background: #273449; }
+    .btn-accent { background: #14532d; border-color: #166534; }
+    .btn-danger { background: #7f1d1d; border-color: #991b1b; }
+    .btn-muted { background: #334155; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row > * { flex: 1; }
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: .78rem;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+    }
+    .status-online { color: #86efac; }
+    .status-offline { color: #fda4af; }
+    .warning {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #451a03;
+      border: 1px solid #92400e;
+      color: #fde68a;
+      display: none;
+    }
+    .error {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      color: #fecaca;
+      display: none;
+    }
+    ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: #cbd5e1;
+    }
+    .small { font-size: .82rem; color: #94a3b8; }
+    .locked {
+      opacity: .75;
+      pointer-events: none;
+      filter: grayscale(.2);
+    }
+    @media (max-width: 980px) {
+      .container { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="panel" id="fieldPanel">
+      <h1>DAR / IR Field App</h1>
+      <div class="row" style="margin-bottom:10px;">
+        <span class="pill" id="docTypePill">No report selected</span>
+        <span class="pill" id="onlinePill">Mode: <span class="status-online">ONLINE</span></span>
+        <span class="pill" id="immutablePill">Mutable</span>
+      </div>
+
+      <div class="row">
+        <button id="newDAR" class="btn-accent">New DAR</button>
+        <button id="newIR" class="btn-accent">New IR</button>
+      </div>
+
+      <h2>Metadata (Required)</h2>
+      <div class="grid" id="editorRegion">
+        <div><label>Creator</label><input id="creator" /></div>
+        <div><label>Client</label><input id="client" /></div>
+        <div><label>Location</label><input id="location" /></div>
+        <div><label>GPS</label><input id="gps" placeholder="37.7749,-122.4194" /></div>
+        <div><label>Date/Time</label><input id="datetime" type="datetime-local" /></div>
+        <div><label>Weather</label><input id="weather" placeholder="Clear, 72F" /></div>
+
+        <div class="full">
+          <label>Inactivity threshold (minutes)</label>
+          <input id="inactivityThreshold" type="number" min="1" value="30" />
+        </div>
+
+        <div class="full">
+          <label>Activity Type</label>
+          <select id="activityType">
+            <option value="">-- Select type --</option>
+            <option value="tour-normal">tour-normal</option>
+            <option value="tour-unusual">tour-unusual</option>
+            <option value="fire">fire</option>
+            <option value="suspect">suspect</option>
+            <option value="theft">theft</option>
+            <option value="manual">manual</option>
+          </select>
+        </div>
+
+        <div class="full">
+          <label>Narrative Detail</label>
+          <textarea id="narrative" placeholder="Required for tour-unusual, fire, suspect, theft."></textarea>
+        </div>
+
+        <div class="full row">
+          <button id="spellBtn">Spell/Grammar Demo</button>
+          <button id="translateBtn">Translation Demo (EN ⇄ ES)</button>
+          <button id="toggleOnlineBtn" class="btn-muted">Go Offline</button>
+        </div>
+
+        <div class="full row">
+          <button id="logActivityBtn" class="btn-accent">Log Activity</button>
+          <button id="finalizeBtn" class="btn-danger">Finalize Report</button>
+        </div>
+
+        <div class="full">
+          <label>Pass-Down Information (Required before finalization)</label>
+          <textarea id="passDown" placeholder="Shift handoff notes, unresolved issues, follow-up actions..."></textarea>
+        </div>
+
+        <div class="full row">
+          <button id="exportJsonBtn">Export JSON</button>
+          <button id="exportCsvBtn">Export CSV</button>
+          <button id="resetBtn" class="btn-danger">Reset Mock State</button>
+        </div>
+      </div>
+
+      <div id="inactiveWarning" class="warning"></div>
+      <div id="validationError" class="error"></div>
+    </section>
+
+    <aside class="panel">
+      <h2>Admin Summary Panel</h2>
+      <p class="small">Prototype overview for supervisors; includes queue + activity state.</p>
+      <ul id="summary"></ul>
+      <h3 style="margin-top: 12px;">Queue (offline actions)</h3>
+      <ul id="queueList"></ul>
+      <h3 style="margin-top: 12px;">Activity Log</h3>
+      <ul id="activityList"></ul>
+    </aside>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------------------
+    // STATE MODEL
+    // This single state object mirrors what would later become a central store
+    // in React Native + Expo (e.g., Zustand/Redux/Context + persistent storage).
+    // -------------------------------------------------------------------------
+    const STORAGE_KEY = 'dar_ir_mock_state_v1';
+    const severeTypes = new Set(['tour-unusual', 'fire', 'suspect', 'theft']);
+
+    let state = {
+      reportType: '',
+      metadata: { creator: '', client: '', location: '', gps: '', datetime: '', weather: '' },
+      inactivityThreshold: 30,
+      activityType: '',
+      narrative: '',
+      passDown: '',
+      online: true,
+      finalized: false,
+      immutableMessage: '',
+      queue: [],
+      activities: [], // {type, narrative, timestamp}
+      lastActivityAt: null,
+      warning: ''
+    };
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      try { state = { ...state, ...JSON.parse(raw) }; }
+      catch { console.warn('Invalid stored state ignored'); }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      render();
+    }
+
+    function $(id) { return document.getElementById(id); }
+
+    function showError(msg) {
+      const el = $('validationError');
+      el.style.display = msg ? 'block' : 'none';
+      el.textContent = msg || '';
+    }
+
+    function setWarning(msg) {
+      state.warning = msg;
+      const el = $('inactiveWarning');
+      el.style.display = msg ? 'block' : 'none';
+      el.textContent = msg || '';
+    }
+
+    function validateMetadata() {
+      const m = state.metadata;
+      if (!state.reportType) return 'Please choose New DAR or New IR.';
+      const required = ['creator', 'client', 'location', 'gps', 'datetime', 'weather'];
+      for (const key of required) {
+        if (!String(m[key] || '').trim()) return `Missing required field: ${key}`;
+      }
+      return '';
+    }
+
+    function requireNarrativeIfNeeded() {
+      if (severeTypes.has(state.activityType) && !state.narrative.trim()) {
+        return `Narrative detail is required for activity type: ${state.activityType}`;
+      }
+      return '';
+    }
+
+    function applySpellGrammarDemo(text) {
+      // Local-only simulated "corrections" for prototype behavior.
+      return text
+        .replace(/\bu\b/gi, 'you')
+        .replace(/\bteh\b/gi, 'the')
+        .replace(/\bdidnt\b/gi, "didn't")
+        .replace(/\bi\b/g, 'I');
+    }
+
+    function applyTranslationDemo(text) {
+      // Local-only tiny EN<->ES dictionary simulation (no external API calls).
+      const dict = {
+        'guard': 'guardia', 'fire': 'incendio', 'suspect': 'sospechoso',
+        'theft': 'robo', 'report': 'informe', 'location': 'ubicación',
+        'clear': 'despejado', 'weather': 'clima', 'activity': 'actividad'
+      };
+      return text.split(/(\W+)/).map(t => {
+        const low = t.toLowerCase();
+        const mapped = dict[low];
+        if (mapped) return t === low ? mapped : mapped.charAt(0).toUpperCase() + mapped.slice(1);
+        // reverse lookup ES->EN demo
+        const rev = Object.entries(dict).find(([,v]) => v === low);
+        if (rev) return rev[0];
+        return t;
+      }).join('');
+    }
+
+    function queueOrApply(action) {
+      if (state.online) {
+        applyAction(action);
+      } else {
+        state.queue.push(action);
+      }
+      saveState();
+    }
+
+    function applyAction(action) {
+      if (action.type === 'LOG_ACTIVITY') {
+        state.activities.unshift(action.payload);
+        state.lastActivityAt = action.payload.timestamp;
+      }
+    }
+
+    function flushQueue() {
+      while (state.queue.length) {
+        const a = state.queue.shift();
+        applyAction(a);
+      }
+      saveState();
+    }
+
+    function checkInactivity() {
+      if (!state.lastActivityAt) {
+        setWarning('No activity logged yet.');
+        return;
+      }
+      const thresholdMs = Math.max(1, Number(state.inactivityThreshold || 30)) * 60 * 1000;
+      const elapsed = Date.now() - new Date(state.lastActivityAt).getTime();
+      if (elapsed > thresholdMs) {
+        setWarning(`Warning: No activity logged in the last ${state.inactivityThreshold} minute(s).`);
+      } else {
+        setWarning('');
+      }
+    }
+
+    function finalizeReport() {
+      const metaErr = validateMetadata();
+      if (metaErr) return showError(metaErr);
+      if (!state.passDown.trim()) return showError('Pass-down information is required before finalization.');
+      if (!state.activities.length) return showError('At least one activity must be logged before finalization.');
+
+      state.finalized = true;
+      state.immutableMessage = `Finalized at ${new Date().toLocaleString()}. This report is immutable.`;
+      showError('');
+      saveState();
+    }
+
+    function exportFile(name, content, type) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function toCsvRow(arr) {
+      return arr.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',');
+    }
+
+    function exportJson() {
+      exportFile('report.json', JSON.stringify(state, null, 2), 'application/json');
+    }
+
+    function exportCsv() {
+      const rows = [
+        ['reportType','creator','client','location','gps','datetime','weather','inactivityThreshold','passDown','finalized'],
+        [state.reportType, state.metadata.creator, state.metadata.client, state.metadata.location, state.metadata.gps, state.metadata.datetime, state.metadata.weather, state.inactivityThreshold, state.passDown, state.finalized]
+      ];
+      rows.push([]);
+      rows.push(['activityType', 'narrative', 'timestamp']);
+      state.activities.forEach(a => rows.push([a.type, a.narrative, a.timestamp]));
+      exportFile('report.csv', rows.map(toCsvRow).join('\n'), 'text/csv');
+    }
+
+    function bindInput(id, setter) {
+      $(id).addEventListener('input', e => {
+        if (state.finalized) return;
+        setter(e.target.value);
+        saveState();
+      });
+    }
+
+    function render() {
+      $('docTypePill').textContent = state.reportType ? `Report: ${state.reportType}` : 'No report selected';
+      $('onlinePill').innerHTML = `Mode: <span class="${state.online ? 'status-online' : 'status-offline'}">${state.online ? 'ONLINE' : 'OFFLINE'}</span>`;
+      $('immutablePill').textContent = state.finalized ? 'Immutable' : 'Mutable';
+
+      $('creator').value = state.metadata.creator;
+      $('client').value = state.metadata.client;
+      $('location').value = state.metadata.location;
+      $('gps').value = state.metadata.gps;
+      $('datetime').value = state.metadata.datetime;
+      $('weather').value = state.metadata.weather;
+      $('inactivityThreshold').value = state.inactivityThreshold;
+      $('activityType').value = state.activityType;
+      $('narrative').value = state.narrative;
+      $('passDown').value = state.passDown;
+      $('toggleOnlineBtn').textContent = state.online ? 'Go Offline' : 'Go Online';
+
+      $('editorRegion').classList.toggle('locked', state.finalized);
+
+      if (state.finalized) {
+        setWarning(state.immutableMessage);
+      } else {
+        checkInactivity();
+      }
+
+      const summaryLines = [
+        `Report Type: ${state.reportType || '(none)'}`,
+        `Creator: ${state.metadata.creator || '(none)'}`,
+        `Client: ${state.metadata.client || '(none)'}`,
+        `Location: ${state.metadata.location || '(none)'}`,
+        `GPS: ${state.metadata.gps || '(none)'}`,
+        `Date/Time: ${state.metadata.datetime || '(none)'}`,
+        `Weather: ${state.metadata.weather || '(none)'}`,
+        `Inactivity Threshold: ${state.inactivityThreshold} min`,
+        `Activities Logged: ${state.activities.length}`,
+        `Pending Offline Queue: ${state.queue.length}`,
+        `Finalized: ${state.finalized ? 'Yes (immutable)' : 'No'}`
+      ];
+      $('summary').innerHTML = summaryLines.map(s => `<li>${s}</li>`).join('');
+
+      $('queueList').innerHTML = state.queue.length
+        ? state.queue.map((q,i) => `<li>#${i+1} ${q.type} @ ${q.payload.timestamp}</li>`).join('')
+        : '<li>(Queue empty)</li>';
+
+      $('activityList').innerHTML = state.activities.length
+        ? state.activities.map(a => `<li><b>${a.type}</b> @ ${new Date(a.timestamp).toLocaleString()}<br>${a.narrative || '(no narrative)'}</li>`).join('')
+        : '<li>(No activities yet)</li>';
+    }
+
+    // EVENT WIRING
+    $('newDAR').addEventListener('click', () => { if (!state.finalized) { state.reportType = 'DAR'; saveState(); }});
+    $('newIR').addEventListener('click', () => { if (!state.finalized) { state.reportType = 'IR'; saveState(); }});
+
+    bindInput('creator', v => state.metadata.creator = v);
+    bindInput('client', v => state.metadata.client = v);
+    bindInput('location', v => state.metadata.location = v);
+    bindInput('gps', v => state.metadata.gps = v);
+    bindInput('datetime', v => state.metadata.datetime = v);
+    bindInput('weather', v => state.metadata.weather = v);
+    bindInput('inactivityThreshold', v => state.inactivityThreshold = Math.max(1, Number(v || 1)));
+    bindInput('activityType', v => state.activityType = v);
+    bindInput('narrative', v => state.narrative = v);
+    bindInput('passDown', v => state.passDown = v);
+
+    $('logActivityBtn').addEventListener('click', () => {
+      if (state.finalized) return;
+      const metaErr = validateMetadata();
+      if (metaErr) return showError(metaErr);
+      const narrativeErr = requireNarrativeIfNeeded();
+      if (narrativeErr) return showError(narrativeErr);
+      if (!state.activityType) return showError('Select an activity type before logging.');
+
+      const payload = {
+        type: state.activityType,
+        narrative: state.narrative.trim(),
+        timestamp: new Date().toISOString()
+      };
+      queueOrApply({ type: 'LOG_ACTIVITY', payload });
+      showError('');
+      state.narrative = '';
+      saveState();
+    });
+
+    $('finalizeBtn').addEventListener('click', finalizeReport);
+
+    $('spellBtn').addEventListener('click', () => {
+      if (state.finalized) return;
+      state.narrative = applySpellGrammarDemo(state.narrative);
+      saveState();
+    });
+
+    $('translateBtn').addEventListener('click', () => {
+      if (state.finalized) return;
+      state.narrative = applyTranslationDemo(state.narrative);
+      saveState();
+    });
+
+    $('toggleOnlineBtn').addEventListener('click', () => {
+      if (state.finalized) return;
+      state.online = !state.online;
+      if (state.online) flushQueue();
+      else saveState();
+    });
+
+    $('exportJsonBtn').addEventListener('click', exportJson);
+    $('exportCsvBtn').addEventListener('click', exportCsv);
+
+    $('resetBtn').addEventListener('click', () => {
+      localStorage.removeItem(STORAGE_KEY);
+      location.reload();
+    });
+
+    // Periodic inactivity check so warning updates live.
+    setInterval(() => {
+      if (!state.finalized) checkInactivity();
+    }, 10000);
+
+    // Initial boot: load persisted state + render.
+    loadState();
+    render();
+  </script>
+</body>
+</html>
