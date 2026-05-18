@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Shopping Assistant</title>
+  <style>
+    :root{--bg:#f4f7fb;--card:#fff;--text:#132131;--muted:#5c6b7c;--brand:#1d4ed8;--ok:#0f766e;--line:#d8e2ee;--warn:#b45309}
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1200px;margin:0 auto;padding:14px}.grid{display:grid;grid-template-columns:270px 1fr 360px;gap:12px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.04)}
+    h1,h2{margin:0 0 10px} h1{font-size:1.5rem} h2{font-size:1.05rem}
+    .row{display:flex;gap:8px}.row>*{min-width:0}.stack{display:flex;flex-direction:column;gap:8px}
+    input,select,button{font:inherit;border-radius:12px;padding:10px 12px;border:1px solid var(--line)} input,select{background:#fff;width:100%}
+    button{cursor:pointer;background:#0f172a;color:#fff;border:none;font-weight:700} button.alt{background:#fff;color:var(--text);border:1px solid var(--line)} button.blue{background:var(--brand)} button.green{background:var(--ok)}
+    .store{display:flex;justify-content:space-between;width:100%;background:#edf3fb;color:var(--text);padding:10px;border-radius:12px}
+    .store.active{background:#0f172a;color:#fff}.badge{background:#fff;color:#111;border-radius:999px;padding:2px 8px;font-size:.85rem}
+    .item{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfdff}
+    .done{text-decoration:line-through;color:#8695a8}.meta{font-size:.82rem;color:var(--muted)} .log{height:280px;overflow:auto;background:#f8fbff;border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:8px}
+    .bubble{padding:10px;border-radius:10px;max-width:90%}.u{align-self:flex-end;background:#0f172a;color:#fff}.a{align-self:flex-start;background:#fff;border:1px solid var(--line)}
+    .status{font-size:.9rem;color:var(--ok);min-height:18px}.pill{font-size:.85rem;background:#eef4ff;padding:4px 8px;border-radius:999px}
+    @media(max-width:1000px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Family Shopping Assistant</h1>
+  <div class="grid">
+    <section class="card stack">
+      <h2>Stores</h2>
+      <div class="row"><input id="newStore" placeholder="Add store"/><button onclick="createStore()">Add</button></div>
+      <div id="stores" class="stack"></div>
+      <button class="alt" onclick="deleteStore()">Delete Current Store</button>
+      <hr style="border:none;border-top:1px solid var(--line);width:100%"/>
+      <h2>Family Sync (manual)</h2>
+      <p class="meta">Use Export/Import on both phones to sync instantly via text message or email.</p>
+      <div class="row"><button class="green" onclick="exportData()">Export JSON</button><button class="alt" onclick="importData()">Import JSON</button></div>
+      <button class="blue" onclick="downloadAppFile()">Download App File</button>
+    </section>
+
+    <section class="card stack">
+      <div class="row" style="justify-content:space-between"><h2 id="title">Groceries</h2><div class="row"><span id="left" class="pill"></span><span id="bought" class="pill"></span></div></div>
+      <div class="row">
+        <input id="itemInput" placeholder="Add item (e.g. milk)"/>
+        <input id="qtyInput" placeholder="Qty" style="max-width:85px"/>
+        <select id="priority"><option>normal</option><option>high</option><option>urgent</option></select>
+        <button onclick="addManual()">Add</button>
+      </div>
+      <div class="row"><input id="filter" placeholder="Filter items" oninput="renderItems()"/><select id="sort" onchange="renderItems()"><option value="new">Newest</option><option value="az">A-Z</option><option value="priority">Priority</option></select></div>
+      <div id="items" class="stack"></div>
+      <div class="row"><button onclick="removePurchased()">Remove Bought</button><button class="alt" onclick="clearList()">Clear</button><button class="alt" onclick="undo()">Undo</button></div>
+    </section>
+
+    <section class="card stack">
+      <div class="row" style="justify-content:space-between"><h2>Assistant</h2><button id="voiceBtn" class="alt" onclick="toggleVoice()">Voice On</button></div>
+      <div id="log" class="log"></div>
+      <div class="status" id="status"></div>
+      <input id="assistantInput" placeholder="Try: add eggs and milk to groceries"/>
+      <div class="row"><button class="blue" style="flex:1" onclick="send()">Send</button><button class="alt" onclick="listen()">Talk / Stop</button></div>
+      <p class="meta">Commands: add, remove, bought, show list, clear list, move item to another store.</p>
+    </section>
+  </div>
+</div>
+<script>
+const KEY='family-shopping-v1'; let state=load(); let current=state.currentStore||'Groceries'; let voice=true; let history=[];
+const ALIASES={grocery:'Groceries',groceries:'Groceries',depot:'Home Depot','home depot':'Home Depot',target:'Target',walmart:'Walmart',costco:'Costco'};
+if(!Object.keys(state.stores||{}).length) state={currentStore:'Groceries',stores:{'Groceries':[],'Home Depot':[]}};
+function load(){try{return JSON.parse(localStorage.getItem(KEY)||'{"stores":{}}')}catch{return {stores:{}}}}
+function save(){state.currentStore=current;localStorage.setItem(KEY,JSON.stringify(state))}
+function normStore(s){if(!s)return'';const k=s.trim().toLowerCase();return ALIASES[k]||s.trim().replace(/\b\w/g,m=>m.toUpperCase())}
+function log(role,t){const d=document.createElement('div');d.className='bubble '+(role==='u'?'u':'a');d.textContent=t;const b=document.getElementById('log');b.appendChild(d);b.scrollTop=b.scrollHeight}
+function speak(t){if(!voice||!('speechSynthesis'in window))return;window.speechSynthesis.cancel();speechSynthesis.speak(new SpeechSynthesisUtterance(t))}
+function snapshot(){history.push(JSON.stringify(state));if(history.length>20)history.shift()}
+function undo(){if(!history.length)return;state=JSON.parse(history.pop());current=state.currentStore;render()}
+function ensure(store){if(!state.stores[store])state.stores[store]=[]}
+function renderStores(){const box=document.getElementById('stores');box.innerHTML='';Object.keys(state.stores).sort().forEach(s=>{const c=state.stores[s].filter(x=>!x.purchased).length;const btn=document.createElement('button');btn.className='store'+(s===current?' active':'');btn.innerHTML=`<span>${s}</span><span class="badge">${c}</span>`;btn.onclick=()=>{current=s;render()};box.appendChild(btn)})}
+function renderItems(){const items=state.stores[current]||[];const q=(document.getElementById('filter').value||'').toLowerCase();let out=[...items].filter(i=>i.text.toLowerCase().includes(q));const sort=document.getElementById('sort').value;if(sort==='az')out.sort((a,b)=>a.text.localeCompare(b.text));if(sort==='priority'){const r={urgent:0,high:1,normal:2};out.sort((a,b)=>r[a.priority]-r[b.priority])}
+  const box=document.getElementById('items');box.innerHTML='';document.getElementById('title').textContent=current;document.getElementById('left').textContent=items.filter(i=>!i.purchased).length+' left';document.getElementById('bought').textContent=items.filter(i=>i.purchased).length+' bought';
+  if(!out.length){box.innerHTML='<div class="meta">No matching items.</div>';return}
+  out.forEach(item=>{const d=document.createElement('div');d.className='item';d.innerHTML=`<input type="checkbox" ${item.purchased?'checked':''}/><div><div class="${item.purchased?'done':''}">${item.text}${item.qty?` (${item.qty})`:''}</div><div class="meta">priority: ${item.priority||'normal'} • ${item.category||'general'}</div></div><div class="row"><button class="alt">Move</button><button class="alt">Del</button></div>`;
+    d.querySelector('input').onchange=e=>{snapshot();item.purchased=e.target.checked;render()};
+    d.querySelectorAll('button')[0].onclick=()=>moveItem(item.id);
+    d.querySelectorAll('button')[1].onclick=()=>{snapshot();state.stores[current]=state.stores[current].filter(x=>x.id!==item.id);render()};
+    box.appendChild(d)
+  })
+}
+function render(){save();renderStores();renderItems()}
+function createStore(){const v=normStore(document.getElementById('newStore').value);if(!v)return;ensure(v);current=v;document.getElementById('newStore').value='';render()}
+function deleteStore(){if(Object.keys(state.stores).length<2)return alert('Need at least one store');snapshot();delete state.stores[current];current=Object.keys(state.stores)[0];render()}
+function addItem(store,text,qty='',priority='normal',category='general'){ensure(store);if(state.stores[store].some(i=>i.text.toLowerCase()===text.toLowerCase()&&!i.purchased))return false;state.stores[store].push({id:crypto.randomUUID(),text,qty,priority,category,purchased:false,createdAt:Date.now()});return true}
+function addManual(){const t=document.getElementById('itemInput').value.trim();if(!t)return;snapshot();addItem(current,t,document.getElementById('qtyInput').value.trim(),document.getElementById('priority').value,guessCategory(t));document.getElementById('itemInput').value='';document.getElementById('qtyInput').value='';render()}
+function guessCategory(t){const s=t.toLowerCase();if(/milk|eggs|bread|cheese|yogurt/.test(s))return 'dairy';if(/apple|banana|lettuce|tomato/.test(s))return 'produce';if(/soap|shampoo|toothpaste/.test(s))return 'household';return 'general'}
+function removePurchased(){snapshot();state.stores[current]=state.stores[current].filter(i=>!i.purchased);render()}
+function clearList(){snapshot();state.stores[current]=[];render()}
+function moveItem(id){const dest=prompt('Move to store name:');if(!dest)return;const store=normStore(dest);ensure(store);snapshot();const item=state.stores[current].find(i=>i.id===id);state.stores[current]=state.stores[current].filter(i=>i.id!==id);state.stores[store].push(item);current=store;render()}
+function parseItems(text){return text.replace(/\.$/,'').split(/,|\band\b/i).map(s=>s.trim()).filter(Boolean)}
+function detectStore(text){const l=text.toLowerCase();for(const a in ALIASES){if(l.includes(a))return ALIASES[a]}const m=l.match(/to\s+([a-z0-9' ]+)/);return m?normStore(m[1]):current}
+function process(cmd){log('u',cmd);const l=cmd.toLowerCase();const store=detectStore(cmd);ensure(store);
+  if(/show|what('| i)?s on|read/.test(l)){current=store;const left=state.stores[store].filter(i=>!i.purchased).map(i=>i.text).join(', ')||'nothing';const msg=`${store}: ${left}.`;log('a',msg);speak(msg);return render()}
+  if(/remove|delete/.test(l)){const part=cmd.replace(/remove|delete|from.+/ig,'');const items=parseItems(part);snapshot();let n=0;state.stores[store]=state.stores[store].filter(i=>{if(items.some(x=>x.toLowerCase()===i.text.toLowerCase())){n++;return false}return true});const msg=n?`Removed ${n} from ${store}.`:`No matching items found on ${store}.`;log('a',msg);speak(msg);return render()}
+  if(/bought|purchased|got/.test(l)){const part=cmd.replace(/i\s*bought|i\s*purchased|got|from.+/ig,'');const items=parseItems(part);snapshot();let n=0;state.stores[store].forEach(i=>{if(items.some(x=>x.toLowerCase()===i.text.toLowerCase())&&!i.purchased){i.purchased=true;n++}});const msg=n?`Marked ${n} bought on ${store}.`:`Couldn't find those items on ${store}.`;log('a',msg);speak(msg);return render()}
+  if(/clear/.test(l)){snapshot();state.stores[store]=[];current=store;const msg=`Cleared ${store}.`;log('a',msg);speak(msg);return render()}
+  const text=cmd.replace(/^(add|put|buy|get|need)\s+/i,'').replace(/\b(to|for|on)\b.+/i,'').trim();const items=parseItems(text);if(items.length){snapshot();const added=[];items.forEach(i=>addItem(store,i,'','normal',guessCategory(i))&&added.push(i));current=store;const msg=added.length?`Added ${added.join(', ')} to ${store}.`:'Those items were already on the list.';log('a',msg);speak(msg);return render()}
+  const help='Try: add milk and eggs to groceries.';log('a',help);speak(help)
+}
+function send(){const i=document.getElementById('assistantInput');const t=i.value.trim();if(!t)return;i.value='';process(t)}
+let activeRec=null;
+function listen(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;const status=document.getElementById('status');if(!SR){log('a','Voice input is not supported in this browser. Try Chrome on Android or Edge desktop.');return;}if(location.protocol!=='https:'&&location.hostname!=='localhost'&&location.protocol!=='file:'){log('a','Voice input usually needs HTTPS. Open this from https:// or localhost.');}if(activeRec){activeRec.stop();activeRec=null;status.textContent='Stopped listening.';return;}const r=new SR();activeRec=r;r.lang='en-US';r.interimResults=true;r.maxAlternatives=1;let heard=false;status.textContent='Listening… speak now.';r.onresult=e=>{const t=e.results?.[0]?.[0]?.transcript||'';if(t){heard=true;status.textContent='Heard: '+t;}};r.onerror=e=>{const code=e.error||'unknown';const help={not-allowed:'Mic permission blocked. Allow microphone access in browser settings.',service-not-allowed:'Speech service blocked by browser/device policy.',no-speech:'No speech detected. Try again closer to the mic.',audio-capture:'No microphone found. Check headset/bluetooth permissions.',network:'Speech service network error. Check connection.'};const msg=help[code]||('Speech error: '+code+'. Try typing your command.');status.textContent=msg;log('a',msg);};r.onend=()=>{if(activeRec!==r)return;activeRec=null;if(heard){const finalText=status.textContent.replace(/^Heard:\s*/,'').trim();status.textContent='';if(finalText)process(finalText);}else if(!status.textContent){status.textContent='I did not catch that. Tap Talk and try again.';}};try{r.start();}catch(err){activeRec=null;const msg='Could not start voice input. Close other apps using the microphone and try again.';status.textContent=msg;log('a',msg);}}
+function toggleVoice(){voice=!voice;document.getElementById('voiceBtn').textContent=voice?'Voice On':'Voice Off'}
+function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='shopping-assistant-backup.json';a.click();URL.revokeObjectURL(a.href)}
+function importData(){const i=document.createElement('input');i.type='file';i.accept='application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const parsed=JSON.parse(r.result);if(!parsed.stores)throw 0;snapshot();state=parsed;current=state.currentStore||Object.keys(state.stores)[0];render();log('a','Import successful.')}catch{alert('Invalid backup file')}};r.readAsText(f)};i.click()}
+function downloadAppFile(){const html=document.documentElement.outerHTML;const blob=new Blob(["<!doctype html>\n"+html],{type:"text/html"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="family-shopping-assistant.html";a.click();URL.revokeObjectURL(a.href);log("a","Downloaded app file. Share this HTML file to install on another phone.")}
+document.getElementById('assistantInput').addEventListener('keydown',e=>e.key==='Enter'&&send());document.getElementById('itemInput').addEventListener('keydown',e=>e.key==='Enter'&&addManual());document.getElementById('newStore').addEventListener('keydown',e=>e.key==='Enter'&&createStore());
+render();log('a','Ready. Tip: export your list and your wife can import it to sync instantly.');
+</script>
+</body></html>
