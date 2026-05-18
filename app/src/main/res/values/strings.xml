@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">VoiceList</string>
+    <string name="add_item">Add item</string>
+    <string name="read_list">Read list</string>
+    <string name="clear_list">Clear list</string>
+    <string name="empty_list">Your list is empty.</string>
+    <string name="speech_prompt_add">Say the grocery item to add</string>
+    <string name="speech_prompt_read">Say 'what's on my list'</string>
+</resources>
